@@ -5,7 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useSession } from "@/hooks/use-session";
 import { useToast } from "@/hooks/use-toast";
-import { fetchFileFromGitHub, uploadFileToGitHub } from "@/lib/github";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 
 interface Comment {
@@ -14,7 +15,7 @@ interface Comment {
   user_name: string;
   user_avatar?: string;
   content: string;
-  created_at: string;
+  created_at: any;
 }
 
 interface CommentsSectionProps {
@@ -29,29 +30,27 @@ export const CommentsSection = ({ projectId }: CommentsSectionProps) => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Load comments from GitHub
+  // Load comments from Firestore
   useEffect(() => {
-    const loadComments = async () => {
-      if (projectId.startsWith('demo-')) return; // No comments for demo projects
+    if (projectId.startsWith('demo-')) return;
 
-      setLoading(true);
-      try {
-        const file = await fetchFileFromGitHub('src/data/projects.json');
-        if (file) {
-          const projects = JSON.parse(file.content);
-          const project = projects.find((p: any) => p.id === projectId);
-          if (project && project.comments) {
-            setComments(project.comments);
-          }
-        }
-      } catch (error) {
-        console.error("Error loading comments:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    setLoading(true);
+    const commentsRef = collection(db, "projects", projectId, "comments");
+    const q = query(commentsRef, orderBy("created_at", "desc"));
 
-    loadComments();
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const loadedComments = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Comment[];
+      setComments(loadedComments);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error loading comments:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [projectId]);
 
   const handleSubmitComment = async (e: React.FormEvent) => {
@@ -69,42 +68,18 @@ export const CommentsSection = ({ projectId }: CommentsSectionProps) => {
 
     setSubmitting(true);
     try {
-      // 1. Fetch latest projects data
-      const file = await fetchFileFromGitHub('src/data/projects.json');
-      if (!file) throw new Error("Could not load projects data");
-
-      const projects = JSON.parse(file.content);
-      const projectIndex = projects.findIndex((p: any) => p.id === projectId);
-
-      if (projectIndex === -1) throw new Error("Project not found");
-
-      // 2. Create new comment
       // Cast user to any to avoid TS errors with the mock session adapter
       const user = session.user as any;
-      const comment: Comment = {
-        id: `comment-${Date.now()}`,
+
+      const commentsRef = collection(db, "projects", projectId, "comments");
+      await addDoc(commentsRef, {
         user_id: user.id,
         user_name: user.user_metadata?.full_name || user.email?.split('@')[0] || "Admin",
-        user_avatar: user.user_metadata?.avatar_url,
+        user_avatar: user.user_metadata?.avatar_url || null,
         content: newComment,
-        created_at: new Date().toISOString(),
-      };
+        created_at: serverTimestamp(),
+      });
 
-      // 3. Update project comments
-      if (!projects[projectIndex].comments) {
-        projects[projectIndex].comments = [];
-      }
-      projects[projectIndex].comments.unshift(comment);
-
-      // 4. Save to GitHub
-      await uploadFileToGitHub(
-        'src/data/projects.json',
-        JSON.stringify(projects, null, 2),
-        `Add comment to project ${projectId}`
-      );
-
-      // 5. Update local state
-      setComments([comment, ...comments]);
       setNewComment("");
       toast({
         title: "Kommentar gesendet",

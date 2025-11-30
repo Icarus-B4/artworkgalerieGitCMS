@@ -5,41 +5,56 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
+import { useSession } from "@/hooks/use-session";
+import { auth } from "@/lib/firebase";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 
 const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { login, isAuthenticated } = useAuth();
+  const { session } = useSession();
   const [loading, setLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (session) {
       navigate("/admin/dashboard");
     }
-  }, [isAuthenticated, navigate]);
+  }, [session, navigate]);
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const success = login(password);
-
-      if (success) {
+      if (isSignUp) {
+        await createUserWithEmailAndPassword(auth, email, password);
+        toast({
+          title: "Account erstellt",
+          description: "Willkommen! Sie sind nun angemeldet.",
+        });
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
         toast({
           title: "Erfolgreich angemeldet",
           description: "Willkommen zurück!",
         });
-        navigate("/admin/dashboard");
-      } else {
-        throw new Error("Falsches Passwort");
       }
+      navigate("/admin/dashboard");
     } catch (error: any) {
+      let errorMessage = "Ein Fehler ist aufgetreten.";
+      if (error.code === "auth/invalid-email") errorMessage = "Ungültige E-Mail-Adresse.";
+      if (error.code === "auth/user-disabled") errorMessage = "Benutzerkonto deaktiviert.";
+      if (error.code === "auth/user-not-found") errorMessage = "Benutzer nicht gefunden.";
+      if (error.code === "auth/wrong-password") errorMessage = "Falsches Passwort.";
+      if (error.code === "auth/email-already-in-use") errorMessage = "E-Mail wird bereits verwendet.";
+      if (error.code === "auth/weak-password") errorMessage = "Passwort ist zu schwach (min. 6 Zeichen).";
+
       toast({
         title: "Fehler",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -51,27 +66,55 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-secondary/20 px-4">
       <Card className="w-full max-w-md animate-scale-in">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold">Admin Bereich</CardTitle>
+          <CardTitle className="text-3xl font-bold">
+            {isSignUp ? "Registrieren" : "Anmelden"}
+          </CardTitle>
           <CardDescription>
-            Melden Sie sich an, um Projekte zu verwalten
+            {isSignUp
+              ? "Erstellen Sie ein Konto für die Artwork Galerie"
+              : "Melden Sie sich an, um Projekte zu verwalten"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSignIn} className="space-y-4">
+          <form onSubmit={handleAuth} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="signin-password">Admin Passwort</Label>
+              <Label htmlFor="email">E-Mail</Label>
               <Input
-                id="signin-password"
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Passwort</Label>
+              <Input
+                id="password"
                 type="password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                minLength={6}
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Wird geladen..." : "Anmelden"}
+              {loading ? "Wird geladen..." : (isSignUp ? "Registrieren" : "Anmelden")}
             </Button>
+
+            <div className="text-center text-sm">
+              <button
+                type="button"
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="text-primary hover:underline"
+              >
+                {isSignUp
+                  ? "Bereits ein Konto? Anmelden"
+                  : "Noch kein Konto? Registrieren"}
+              </button>
+            </div>
           </form>
         </CardContent>
       </Card>

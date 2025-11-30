@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Heart, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { fetchFileFromGitHub, uploadFileToGitHub } from "@/lib/github";
+import { db } from "@/lib/firebase";
+import { doc, updateDoc, increment, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 
 interface LikeButtonProps {
   projectId: string;
@@ -16,12 +17,24 @@ export const LikeButton = ({ projectId, initialLikes, size = "default" }: LikeBu
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  // Check local storage for liked status on mount
+  // Real-time listener for likes
   useEffect(() => {
+    if (projectId.startsWith("demo-")) return;
+
+    const projectRef = doc(db, "projects", projectId);
+    const unsubscribe = onSnapshot(projectRef, (doc) => {
+      if (doc.exists()) {
+        setLikes(doc.data().likes || 0);
+      }
+    });
+
+    // Check local storage for liked status
     const likedProjects = JSON.parse(localStorage.getItem("liked_projects") || "[]");
     if (likedProjects.includes(projectId)) {
       setIsLiked(true);
     }
+
+    return () => unsubscribe();
   }, [projectId]);
 
   const handleLike = async () => {
@@ -34,16 +47,27 @@ export const LikeButton = ({ projectId, initialLikes, size = "default" }: LikeBu
       return;
     }
 
-    // Optimistic update
-    const newIsLiked = !isLiked;
-    const newLikes = newIsLiked ? likes + 1 : likes - 1;
-
-    setLikes(newLikes);
-    setIsLiked(newIsLiked);
     setIsLoading(true);
+    const newIsLiked = !isLiked;
 
     try {
-      // 1. Update local storage
+      const projectRef = doc(db, "projects", projectId);
+      const projectDoc = await getDoc(projectRef);
+
+      if (!projectDoc.exists()) {
+        // Create document if it doesn't exist
+        await setDoc(projectRef, {
+          likes: initialLikes + (newIsLiked ? 1 : 0),
+          id: projectId
+        });
+      } else {
+        // Update existing document
+        await updateDoc(projectRef, {
+          likes: increment(newIsLiked ? 1 : -1)
+        });
+      }
+
+      // Update local storage
       const likedProjects = JSON.parse(localStorage.getItem("liked_projects") || "[]");
       if (newIsLiked) {
         localStorage.setItem("liked_projects", JSON.stringify([...likedProjects, projectId]));
@@ -51,37 +75,9 @@ export const LikeButton = ({ projectId, initialLikes, size = "default" }: LikeBu
         localStorage.setItem("liked_projects", JSON.stringify(likedProjects.filter((id: string) => id !== projectId)));
       }
 
-      // 2. Fetch current projects data
-      const file = await fetchFileFromGitHub('src/data/projects.json');
-      if (!file) throw new Error("Could not load projects data");
-
-      const projects = JSON.parse(file.content);
-      const projectIndex = projects.findIndex((p: any) => p.id === projectId);
-
-      if (projectIndex === -1) throw new Error("Project not found");
-
-      // 3. Update likes in data
-      // Ensure we don't go below 0 and handle potential sync conflicts gracefully
-      // We trust the optimistic update logic but verify against current data
-      let currentServerLikes = projects[projectIndex].likes || 0;
-      if (newIsLiked) {
-        projects[projectIndex].likes = currentServerLikes + 1;
-      } else {
-        projects[projectIndex].likes = Math.max(0, currentServerLikes - 1);
-      }
-
-      // 4. Save to GitHub
-      await uploadFileToGitHub(
-        'src/data/projects.json',
-        JSON.stringify(projects, null, 2),
-        `Update likes for project ${projectId}`
-      );
-
+      setIsLiked(newIsLiked);
     } catch (error) {
       console.error("Error updating likes:", error);
-      // Revert optimistic update on error
-      setLikes(likes);
-      setIsLiked(isLiked);
       toast({
         title: "Fehler",
         description: "Like konnte nicht gespeichert werden.",

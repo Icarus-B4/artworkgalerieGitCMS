@@ -7,36 +7,38 @@ import { Home, LogOut, Users } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { ProjectUploadDialog } from "@/components/admin/ProjectUploadDialog";
 import { ProjectListItem } from "@/components/admin/ProjectListItem";
-import { useAuth } from "@/contexts/AuthContext";
-import { fetchFileFromGitHub } from "@/lib/github";
-import projectsData from "@/data/projects.json";
+import { useSession } from "@/hooks/use-session";
+import { auth, db } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isAuthenticated, logout, loading: authLoading } = useAuth();
+  const { session, loading: authLoading } = useSession();
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (!authLoading && !session) {
       navigate("/admin");
     }
-  }, [isAuthenticated, authLoading, navigate]);
+  }, [session, authLoading, navigate]);
 
   const { data: projects = [], refetch } = useQuery({
     queryKey: ["admin-projects"],
     queryFn: async () => {
       try {
-        // Try to fetch from GitHub to get latest state
-        const file = await fetchFileFromGitHub('src/data/projects.json');
-        if (file) {
-          return JSON.parse(file.content);
-        }
+        const q = query(collection(db, "projects"), orderBy("created_at", "desc"));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
       } catch (e) {
-        console.error("Failed to fetch from GitHub, falling back to local", e);
+        console.error("Failed to fetch projects", e);
+        return [];
       }
-      return projectsData;
     },
-    enabled: isAuthenticated,
+    enabled: !!session,
   });
 
   const stats = {
@@ -45,13 +47,17 @@ const AdminDashboard = () => {
     totalViews: projects.reduce((sum: number, p: any) => sum + (p.views || 0), 0),
   };
 
-  const handleSignOut = () => {
-    logout();
-    toast({
-      title: "Abgemeldet",
-      description: "Sie wurden erfolgreich abgemeldet",
-    });
-    navigate("/admin");
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      toast({
+        title: "Abgemeldet",
+        description: "Sie wurden erfolgreich abgemeldet",
+      });
+      navigate("/admin");
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
   };
 
   if (authLoading) {

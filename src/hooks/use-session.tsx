@@ -1,11 +1,19 @@
-import { useAuth } from "@/contexts/AuthContext";
+import { useState, useEffect } from "react";
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
 
-// Adapter hook to maintain compatibility with existing code
 export const useSession = () => {
-  const { isAuthenticated, loading } = useAuth();
-  
-  return { 
-    session: isAuthenticated ? { user: { id: 'admin' } } : null, 
-    loading 
-  };
+  const [session, setSession] = useState<{ user: User | null } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setSession(user ? { user } : null);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return { session, loading };
 };

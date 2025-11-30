@@ -8,7 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Plus, Upload, X, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { uploadFileToGitHub, fetchFileFromGitHub } from "@/lib/github";
+import { db, storage } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { useSession } from "@/hooks/use-session";
 
 interface ProjectUploadDialogProps {
   onProjectCreated: () => void;
@@ -24,6 +27,7 @@ export const ProjectUploadDialog = ({ onProjectCreated }: ProjectUploadDialogPro
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const { toast } = useToast();
+  const { session } = useSession();
 
   const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
   const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo'];
@@ -69,13 +73,10 @@ export const ProjectUploadDialog = ({ onProjectCreated }: ProjectUploadDialogPro
     return null;
   };
 
-  const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as ArrayBuffer);
-      reader.onerror = reject;
-      reader.readAsArrayBuffer(file);
-    });
+  const uploadFile = async (file: File, path: string): Promise<string> => {
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    return await getDownloadURL(storageRef);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -120,69 +121,49 @@ export const ProjectUploadDialog = ({ onProjectCreated }: ProjectUploadDialogPro
     try {
       const timestamp = Date.now();
       const projectId = `project-${timestamp}`;
-      const repoOwner = import.meta.env.VITE_REPO_OWNER;
-      const repoName = import.meta.env.VITE_REPO_NAME;
-      const baseUrl = `https://raw.githubusercontent.com/${repoOwner}/${repoName}/main/public/uploads`;
+      const userId = session?.user?.uid || "anonymous";
 
       // 1. Upload Cover Image
       const coverExt = coverFile.name.split('.').pop();
-      const coverPath = `public/uploads/${projectId}-cover.${coverExt}`;
-      const coverContent = await readFileAsArrayBuffer(coverFile);
+      const coverPath = `projects/${projectId}/cover.${coverExt}`;
+      const coverUrl = await uploadFile(coverFile, coverPath);
 
-      await uploadFileToGitHub(coverPath, coverContent, `Add cover for project ${title}`, 'base64');
-      const coverUrl = `${baseUrl}/${projectId}-cover.${coverExt}`;
+      setUploadProgress(Math.round((1 / (mediaFiles.length + 1)) * 100));
 
       // 2. Upload Media Files
       const mediaUrls = [];
-      const totalFiles = mediaFiles.length + 1; // +1 for cover
-      setUploadProgress(Math.round((1 / totalFiles) * 100));
-
       for (let i = 0; i < mediaFiles.length; i++) {
         const file = mediaFiles[i];
         const ext = file.name.split('.').pop();
-        const path = `public/uploads/${projectId}-media-${i}.${ext}`;
-        const content = await readFileAsArrayBuffer(file);
-
-        await uploadFileToGitHub(path, content, `Add media ${i} for project ${title}`, 'base64');
+        const path = `projects/${projectId}/media-${i}.${ext}`;
+        const url = await uploadFile(file, path);
 
         mediaUrls.push({
-          url: `${baseUrl}/${projectId}-media-${i}.${ext}`,
+          url: url,
           type: file.type.startsWith('video') ? 'video' : 'image'
         });
 
-        setUploadProgress(Math.round(((i + 2) / totalFiles) * 100));
+        setUploadProgress(Math.round(((i + 2) / (mediaFiles.length + 1)) * 100));
       }
 
-      // 3. Update projects.json
-      const projectsFile = await fetchFileFromGitHub('src/data/projects.json');
-      let projects = [];
-      if (projectsFile) {
-        projects = JSON.parse(projectsFile.content);
-      }
-
-      const newProject = {
+      // 3. Save to Firestore
+      await setDoc(doc(db, "projects", projectId), {
         id: projectId,
         title,
         description,
         category,
         cover_image_url: coverUrl,
         created_at: new Date().toISOString(),
+        user_id: userId,
         likes: 0,
         views: 0,
-        media: mediaUrls
-      };
-
-      projects.unshift(newProject);
-
-      await uploadFileToGitHub(
-        'src/data/projects.json',
-        JSON.stringify(projects, null, 2),
-        `Add project: ${title}`
-      );
+        media: mediaUrls,
+        updated_at: serverTimestamp()
+      });
 
       toast({
         title: "Erfolg",
-        description: "Projekt wurde erfolgreich erstellt. Es kann 1-2 Minuten dauern, bis es online sichtbar ist.",
+        description: "Projekt wurde erfolgreich erstellt.",
       });
 
       setOpen(false);
