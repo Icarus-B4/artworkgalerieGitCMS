@@ -10,7 +10,7 @@ export const getGitHubConfig = (): GitHubConfig => {
   const owner = import.meta.env.VITE_REPO_OWNER;
   const repo = import.meta.env.VITE_REPO_NAME;
   const token = import.meta.env.VITE_GITHUB_TOKEN;
-  
+
   if (!owner || !repo || !token) {
     console.error("Missing GitHub configuration. Please check VITE_REPO_OWNER, VITE_REPO_NAME, and VITE_GITHUB_TOKEN.");
   }
@@ -63,7 +63,7 @@ export const uploadFileToGitHub = async (
 
   // Check if file exists to get SHA (for update)
   const existing = await fetchFileFromGitHub(path).catch(() => null);
-  
+
   let contentBase64 = '';
   if (encoding === 'base64' && content instanceof ArrayBuffer) {
     const bytes = new Uint8Array(content);
@@ -99,6 +99,41 @@ export const uploadFileToGitHub = async (
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`GitHub Upload Error: ${response.status} ${errorText}`);
+  }
+
+  return await response.json();
+};
+
+export const deleteFileFromGitHub = async (
+  path: string,
+  message: string
+) => {
+  const { owner, repo, token, branch } = getGitHubConfig();
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+  // Get SHA first
+  const existing = await fetchFileFromGitHub(path).catch(() => null);
+  if (!existing) return; // File doesn't exist, nothing to delete
+
+  const body = {
+    message,
+    sha: existing.sha,
+    branch,
+  };
+
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`GitHub Delete Error: ${response.status} ${errorText}`);
   }
 
   return await response.json();

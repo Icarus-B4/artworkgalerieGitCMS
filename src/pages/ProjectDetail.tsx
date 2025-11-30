@@ -2,7 +2,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
-import { Heart, Eye, Download, ArrowLeft, Edit } from "lucide-react";
+import { Heart, Eye, Download, ArrowLeft, Edit, Trash2 } from "lucide-react";
 import { LikeButton } from "@/components/LikeButton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CommentsSection } from "@/components/CommentsSection";
@@ -15,7 +15,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog"; // Import Dialog components
+import { useToast } from "@/hooks/use-toast";
+import { deleteFileFromGitHub, fetchFileFromGitHub, uploadFileToGitHub } from "@/lib/github";
 
 // Demo images
 import project1 from "@/assets/project-1.jpg";
@@ -115,9 +119,72 @@ const ProjectDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { session, loading: sessionLoading } = useSession();
+  const { toast } = useToast();
   const [openMedia, setOpenMedia] = useState<
     { url: string; type: string } | null
   >(null); // State for the currently open media in the dialog
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const handleDelete = async () => {
+    if (!project || !id) return;
+
+    setIsDeleting(true);
+    try {
+      // 1. Fetch current projects.json
+      const projectsFile = await fetchFileFromGitHub('src/data/projects.json');
+      if (!projectsFile) throw new Error("Could not fetch projects data");
+
+      const projects = JSON.parse(projectsFile.content);
+      const updatedProjects = projects.filter((p: any) => p.id !== id);
+
+      // 2. Update projects.json
+      await uploadFileToGitHub(
+        'src/data/projects.json',
+        JSON.stringify(updatedProjects, null, 2),
+        `Delete project: ${project.title}`
+      );
+
+      // 3. Delete media files (optional, but good for cleanup)
+      try {
+        // Delete cover image
+        if (project.cover_image_url && project.cover_image_url.includes('githubusercontent')) {
+          const coverPath = project.cover_image_url.split('/main/')[1];
+          if (coverPath) await deleteFileFromGitHub(coverPath, `Delete cover for ${project.title}`);
+        }
+
+        // Delete additional media
+        if (project.media && Array.isArray(project.media)) {
+          for (const media of project.media) {
+            const mediaUrl = media.url || media.media_url;
+            if (mediaUrl && mediaUrl.includes('githubusercontent')) {
+              const mediaPath = mediaUrl.split('/main/')[1];
+              if (mediaPath) await deleteFileFromGitHub(mediaPath, `Delete media for ${project.title}`);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn("Error cleaning up media files:", error);
+      }
+
+      toast({
+        title: "Projekt gelöscht",
+        description: "Das Projekt wurde erfolgreich entfernt.",
+      });
+
+      navigate("/");
+    } catch (error: any) {
+      console.error("Error deleting project:", error);
+      toast({
+        title: "Fehler",
+        description: `Löschen fehlgeschlagen: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
 
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", id],
@@ -198,6 +265,24 @@ const ProjectDetail = () => {
     <div className="min-h-screen bg-background">
       <Header />
 
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Projekt löschen?</DialogTitle>
+            <DialogDescription>
+              Möchten Sie dieses Projekt wirklich unwiderruflich löschen?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Abbrechen</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+              {isDeleting ? "Löscht..." : "Löschen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="container mx-auto px-4 py-8">
         {/* Back Button */}
         <Link to="/">
@@ -216,14 +301,24 @@ const ProjectDetail = () => {
             </span>
             <LikeButton projectId={id!} initialLikes={project.likes} />
             {isOwner && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/admin/edit-project/${project.id}`)}
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Projekt bearbeiten
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/admin/edit-project/${project.id}`)}
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Bearbeiten
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Löschen
+                </Button>
+              </div>
             )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Avatar className="h-6 w-6">
