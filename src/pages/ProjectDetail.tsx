@@ -40,9 +40,9 @@ const demoProjectsData: { [key: string]: any } = {
   },
   "demo-2": {
     id: "demo-2",
-    title: "Landschaft",
-    description: "Atemberaubende Landschaftsfotografie zur goldenen Stunde. Biel/Bienne - Ligerz",
-    category: "fotografie",
+    title: "Deep Core Developer",
+    description: "VideoIntro for Deep Core Developer made with Blender 3D",
+    category: "design",
     cover_image_url: project2,
     likes: 567,
     views: 3421,

@@ -28,8 +28,8 @@ const demoProjects = [
   },
   {
     id: "demo-2",
-    title: "Rebberg Landschaft",
-    category: "fotografie",
+    title: "Deep Core Developer",
+    category: "design",
     cover_image_url: project2,
     likes: 567,
     views: 3421,
