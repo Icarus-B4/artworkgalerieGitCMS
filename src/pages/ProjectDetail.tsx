@@ -26,6 +26,7 @@ import project5 from "@/assets/project-5.jpg";
 import project6 from "@/assets/project-6.jpg";
 import project7 from "@/assets/project-7.webp";
 import project8 from "@/assets/project-8.png";
+import projectsData from "@/data/projects.json";
 
 const demoProjectsData: { [key: string]: any } = {
   "demo-1": {
@@ -121,11 +122,18 @@ const ProjectDetail = () => {
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => {
-      // Only support demo projects with Git CMS
+      // First check if it's a real project from projects.json
+      const realProject = projectsData.find((p) => p.id === id);
+      if (realProject) {
+        return realProject;
+      }
+
+      // Then check demo projects
       if (id?.startsWith("demo-")) {
         return demoProjectsData[id];
       }
-      // Non-demo projects not supported in Git CMS
+
+      // Project not found
       return null;
     },
   });
@@ -149,11 +157,8 @@ const ProjectDetail = () => {
     enabled: false,
   });
 
-  const { data: projectMedia = [] } = useQuery({
-    queryKey: ["project-media", id],
-    queryFn: async () => [],
-    enabled: false,
-  });
+  // Use media from project object if available (for uploaded projects)
+  const projectMedia = project?.media || [];
 
   const mediaType = project ? getMediaType(project.cover_image_url) : 'image';
   const isOwner = session?.user?.id === project?.user_id;
@@ -275,38 +280,44 @@ const ProjectDetail = () => {
           <div className="mb-8">
             <h2 className="text-2xl font-semibold mb-4">Weitere Medien</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {projectMedia.map((media, index) => (
-                <div
-                  key={media.id}
-                  className="animate-fade-in"
-                  style={{ animationDelay: `${index * 0.1}s` }}
-                >
-                  {media.media_type === "video" ? (
-                    <video
-                      src={media.media_url}
-                      className="w-full h-48 object-cover rounded-lg shadow-lg"
-                      controls
-                      playsInline
-                    />
-                  ) : (
-                    <div
-                      className="cursor-zoom-in" // Apply cursor only to images
-                      onClick={() =>
-                        setOpenMedia({
-                          url: media.media_url,
-                          type: media.media_type,
-                        })
-                      }
-                    >
-                      <img
-                        src={media.media_url}
-                        alt={`${project.title} - Medien ${index + 1}`}
+              {projectMedia.map((media, index) => {
+                // Support both old structure (media_url/media_type) and new structure (url/type)
+                const mediaUrl = media.url || media.media_url;
+                const mediaType = media.type || media.media_type;
+
+                return (
+                  <div
+                    key={media.id || index}
+                    className="animate-fade-in"
+                    style={{ animationDelay: `${index * 0.1}s` }}
+                  >
+                    {mediaType === "video" ? (
+                      <video
+                        src={mediaUrl}
                         className="w-full h-48 object-cover rounded-lg shadow-lg"
+                        controls
+                        playsInline
                       />
-                    </div>
-                  )}
-                </div>
-              ))}
+                    ) : (
+                      <div
+                        className="cursor-zoom-in" // Apply cursor only to images
+                        onClick={() =>
+                          setOpenMedia({
+                            url: mediaUrl,
+                            type: mediaType,
+                          })
+                        }
+                      >
+                        <img
+                          src={mediaUrl}
+                          alt={`${project.title} - Medien ${index + 1}`}
+                          className="w-full h-48 object-cover rounded-lg shadow-lg"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
