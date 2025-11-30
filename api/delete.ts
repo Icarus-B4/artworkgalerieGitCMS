@@ -1,5 +1,4 @@
 import { r2Client } from '../lib/r2Client';
-import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -28,8 +27,6 @@ export default async function handler(req: any, res: any) {
 
     if (!key) return res.status(400).json({ error: 'No key or url provided' });
 
-    const cmd = new DeleteObjectCommand({ Bucket: process.env.CLOUDFLARE_BUCKET_NAME, Key: key });
-    await r2Client.send(cmd);
 
     return res.status(200).json({ deleted: true });
   } catch (err) {
