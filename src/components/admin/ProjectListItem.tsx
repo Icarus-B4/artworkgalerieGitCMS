@@ -1,9 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Eye, Heart, Trash2, Edit } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Eye, Heart, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useSession } from "@/hooks/use-session";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ProjectListItemProps {
   project: {
@@ -20,10 +19,8 @@ interface ProjectListItemProps {
 
 export const ProjectListItem = ({ project, onProjectDeleted }: ProjectListItemProps) => {
   const { toast } = useToast();
-  const { session } = useSession();
-  const isOwner = session?.user?.id === project.user_id;
-  const isAdmin = false; // Implementiere hier die Admin-Rollenprüfung, falls benötigt
-  const canEditOrDelete = isOwner || isAdmin;
+  const { isAuthenticated } = useAuth();
+  const canEditOrDelete = isAuthenticated;
 
   const getCategoryLabel = (category: string) => {
     const labels: Record<string, string> = {
@@ -33,74 +30,17 @@ export const ProjectListItem = ({ project, onProjectDeleted }: ProjectListItemPr
       ui_ux: "UI/UX",
       architektur: "Architektur",
       produktdesign: "Produktdesign",
-      ai_ki:"AI/KI",
+      ai_ki: "AI/KI",
     };
     return labels[category] || category;
   };
 
   const handleDelete = async () => {
-    if (!confirm("Möchten Sie dieses Projekt wirklich löschen?")) return;
-
-    try {
-      // Fetch project media entries
-      const { data: mediaItems, error: mediaFetchError } = await supabase
-        .from('project_media')
-        .select('id, media_url')
-        .eq('project_id', project.id);
-
-      if (mediaFetchError) {
-        console.error('Error fetching project media:', mediaFetchError);
-        throw mediaFetchError;
-      }
-
-      // Attempt to delete each media object from R2 (best-effort)
-      if (mediaItems && mediaItems.length > 0) {
-        await Promise.all(mediaItems.map(async (m: any) => {
-          try {
-            await fetch('/api/delete', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url: m.media_url }),
-            });
-          } catch (err) {
-            console.error('Error deleting media from R2:', err);
-          }
-        }));
-
-        // Remove media rows from DB
-        const { error: delMediaError } = await supabase
-          .from('project_media')
-          .delete()
-          .eq('project_id', project.id);
-
-        if (delMediaError) {
-          console.error('Error deleting media rows:', delMediaError);
-          throw delMediaError;
-        }
-      }
-
-      // Finally delete the project row
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', project.id);
-
-      if (error) throw error;
-
-      toast({
-        title: 'Erfolg',
-        description: 'Projekt wurde gelöscht',
-      });
-
-      onProjectDeleted();
-    } catch (error) {
-      console.error('Error deleting project:', error);
-      toast({
-        title: 'Fehler',
-        description: 'Projekt konnte nicht gelöscht werden',
-        variant: 'destructive',
-      });
-    }
+    toast({
+      title: 'Nicht verfügbar',
+      description: 'Projekt-Löschung ist mit Git CMS nicht verfügbar',
+      variant: 'destructive',
+    });
   };
 
   return (

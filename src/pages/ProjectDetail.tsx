@@ -1,6 +1,5 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Heart, Eye, Download, ArrowLeft, Edit } from "lucide-react";
@@ -122,71 +121,19 @@ const ProjectDetail = () => {
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => {
-      // Check if it's a demo project
+      // Only support demo projects with Git CMS
       if (id?.startsWith("demo-")) {
         return demoProjectsData[id];
       }
-
-      const { data, error } = await (supabase as any)
-        .from("projects")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (error) throw error;
-      return data;
+      // Non-demo projects not supported in Git CMS
+      return null;
     },
   });
 
-  // Function to increment view count
+  // Function to increment view count - disabled for Git CMS
   const incrementViewCount = async (projectId: string) => {
-    // Skip for demo projects
-    if (projectId?.startsWith("demo-")) {
-      return;
-    }
-
-    // Skip if current user is the project owner (to avoid counting own views during development)
-    if (session?.user?.id === project?.user_id) {
-      console.log('Skipping view count for project owner');
-      return;
-    }
-
-    // Skip views during development (optional - can be enabled via environment variable)
-    if (import.meta.env.DEV && import.meta.env.VITE_EXCLUDE_DEV_VIEWS === 'true') {
-      console.log('Skipping view count in development mode');
-      return;
-    }
-
-    try {
-      console.log('Attempting to increment view count for project:', projectId);
-      console.log('Current views:', project.views);
-      console.log('User session:', session?.user?.id || 'anonymous');
-      
-      // Try the RPC function first (most secure)
-      const { error: rpcError } = await (supabase as any).rpc('increment_project_views', {
-        project_id: projectId
-      });
-      
-      if (rpcError) {
-        console.log('RPC failed, trying direct update:', rpcError.message);
-        // Fallback to direct update (this might fail for anonymous users)
-        const { error: updateError } = await supabase
-          .from('projects')
-          .update({ views: project.views + 1 })
-          .eq('id', projectId);
-        
-        if (updateError) {
-          console.error('Both RPC and direct update failed:', updateError.message);
-          console.log('This is expected for anonymous users without proper permissions');
-        } else {
-          console.log('Successfully incremented view count via direct update');
-        }
-      } else {
-        console.log('Successfully incremented view count via RPC');
-      }
-    } catch (error) {
-      console.error('Error incrementing view count:', error);
-    }
+    // View counting not available with Git CMS
+    return;
   };
 
   // Increment view count when component mounts and project is loaded
@@ -196,41 +143,16 @@ const ProjectDetail = () => {
     }
   }, [project, id]);
 
-  const { data: creatorProfile, isLoading: isCreatorProfileLoading } = useQuery({
+  const { data: creatorProfile } = useQuery({
     queryKey: ["creatorProfile", project?.user_id],
-    queryFn: async () => {
-      if (!project?.user_id) return null;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("display_name, avatar_url")
-        .eq("id", project.user_id)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!project?.user_id,
+    queryFn: async () => null,
+    enabled: false,
   });
 
   const { data: projectMedia = [] } = useQuery({
     queryKey: ["project-media", id],
-    queryFn: async () => {
-      if (id?.startsWith("demo-")) {
-        return [];
-      }
-
-      const { data, error } = await supabase
-        .from("project_media")
-        .select("*")
-        .eq("project_id", id)
-        .order("order_index", { ascending: true });
-
-      if (error) {
-        console.error("Error fetching project media:", error);
-        return [];
-      }
-      return data || [];
-    },
-    enabled: !!id && !id.startsWith("demo-"),
+    queryFn: async () => [],
+    enabled: false,
   });
 
   const mediaType = project ? getMediaType(project.cover_image_url) : 'image';

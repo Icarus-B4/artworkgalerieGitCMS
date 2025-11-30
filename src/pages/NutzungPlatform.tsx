@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ProjectCard } from "@/components/ProjectCard";
@@ -89,31 +88,16 @@ const Index = () => {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const typewriterText = useTypewriter("Eine Plattform für Kreative, um ihre besten Arbeiten zu präsentieren", 50);
 
-  const { data: projects = [], isLoading } = useQuery({
+  const { data: projects = [] } = useQuery({
     queryKey: ["projects", selectedCategory],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      console.log("Fetched projects from Supabase:", data);
-      return data || [];
-    },
+    queryFn: async () => [],
+    enabled: false,
   });
 
   const { data: allHeroProjects = [] } = useQuery({
     queryKey: ["allHeroProjects"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    },
+    queryFn: async () => [],
+    enabled: false,
   });
 
   // Use demo projects if no projects in database
@@ -156,13 +140,13 @@ const Index = () => {
             <div className="bg-card/50 backdrop-blur-sm rounded-lg p-8 mb-8 border">
               <h2 className="text-3xl font-bold mb-6 text-primary">1. Eigentum und Urheberrecht</h2>
               <p className="text-muted-foreground mb-4">
-                Als Nutzer der Artwork-Galerie bestätigen Sie, dass alle von Ihnen hochgeladenen Inhalte 
-                (Bilder, Videos, Texte und sonstige Materialien) Ihr geistiges Eigentum sind oder Sie 
+                Als Nutzer der Artwork-Galerie bestätigen Sie, dass alle von Ihnen hochgeladenen Inhalte
+                (Bilder, Videos, Texte und sonstige Materialien) Ihr geistiges Eigentum sind oder Sie
                 über die notwendigen Rechte verfügen, diese zu veröffentlichen.
               </p>
               <p className="text-muted-foreground mb-4">
-                Sie sind allein verantwortlich dafür, dass Ihre Inhalte keine Rechte Dritter verletzen. 
-                Die Artwork-Galerie übernimmt keine Haftung für Urheberrechtsverletzungen durch 
+                Sie sind allein verantwortlich dafür, dass Ihre Inhalte keine Rechte Dritter verletzen.
+                Die Artwork-Galerie übernimmt keine Haftung für Urheberrechtsverletzungen durch
                 Nutzer-uploaded Inhalte.
               </p>
             </div>
@@ -170,13 +154,13 @@ const Index = () => {
             <div className="bg-card/50 backdrop-blur-sm rounded-lg p-8 mb-8 border">
               <h2 className="text-3xl font-bold mb-6 text-primary">2. Datenschutz und Privatsphäre</h2>
               <p className="text-muted-foreground mb-4">
-                Die Nutzung unserer Plattform unterliegt unseren Datenschutzrichtlinien. 
-                Durch die Nutzung der Artwork-Galerie erklären Sie sich damit einverstanden, 
+                Die Nutzung unserer Plattform unterliegt unseren Datenschutzrichtlinien.
+                Durch die Nutzung der Artwork-Galerie erklären Sie sich damit einverstanden,
                 dass wir Ihre Daten gemäß unserer Datenschutzerklärung verarbeiten.
               </p>
               <p className="text-muted-foreground mb-4">
-                Wir respektieren Ihre Privatsphäre und verpflichten uns, Ihre persönlichen Daten 
-                sicher und vertraulich zu behandeln. Weitere Details finden Sie in unserer 
+                Wir respektieren Ihre Privatsphäre und verpflichten uns, Ihre persönlichen Daten
+                sicher und vertraulich zu behandeln. Weitere Details finden Sie in unserer
                 <a href="/datenschutz" className="text-primary hover:underline"> Datenschutzerklärung</a>.
               </p>
             </div>
@@ -184,7 +168,7 @@ const Index = () => {
             <div className="bg-card/50 backdrop-blur-sm rounded-lg p-8 mb-8 border">
               <h2 className="text-3xl font-bold mb-6 text-primary">3. Respektvolle Kommunikation</h2>
               <p className="text-muted-foreground mb-4">
-                Die Artwork-Galerie ist ein Ort für kreativen Austausch und Inspiration. 
+                Die Artwork-Galerie ist ein Ort für kreativen Austausch und Inspiration.
                 Wir erwarten von allen Nutzern einen respektvollen und freundlichen Umgang miteinander.
               </p>
               <ul className="list-disc pl-6 text-muted-foreground mb-4">
@@ -211,12 +195,12 @@ const Index = () => {
             <div className="bg-card/50 backdrop-blur-sm rounded-lg p-8 mb-8 border">
               <h2 className="text-3xl font-bold mb-6 text-primary">5. Plattform-Nutzung</h2>
               <p className="text-muted-foreground mb-4">
-                Die Artwork-Galerie stellt eine Plattform für die Präsentation und den Austausch 
-                kreativer Arbeiten zur Verfügung. Wir behalten uns das Recht vor, Inhalte zu 
+                Die Artwork-Galerie stellt eine Plattform für die Präsentation und den Austausch
+                kreativer Arbeiten zur Verfügung. Wir behalten uns das Recht vor, Inhalte zu
                 moderieren und bei Verstößen gegen diese Richtlinien entsprechende Maßnahmen zu ergreifen.
               </p>
               <p className="text-muted-foreground mb-4">
-                Bei Fragen oder Problemen wenden Sie sich gerne an unser Support-Team. 
+                Bei Fragen oder Problemen wenden Sie sich gerne an unser Support-Team.
                 Wir sind hier, um eine positive und inspirierende Community zu fördern.
               </p>
             </div>
@@ -224,8 +208,8 @@ const Index = () => {
             <div className="bg-card/50 backdrop-blur-sm rounded-lg p-8 border">
               <h2 className="text-3xl font-bold mb-6 text-primary">6. Änderungen der Nutzungsbedingungen</h2>
               <p className="text-muted-foreground">
-                Wir behalten uns das Recht vor, diese Nutzungsbedingungen jederzeit zu ändern. 
-                Wesentliche Änderungen werden wir rechtzeitig bekannt geben. Die fortgesetzte 
+                Wir behalten uns das Recht vor, diese Nutzungsbedingungen jederzeit zu ändern.
+                Wesentliche Änderungen werden wir rechtzeitig bekannt geben. Die fortgesetzte
                 Nutzung der Plattform nach Änderungen gilt als Zustimmung zu den neuen Bedingungen.
               </p>
             </div>
