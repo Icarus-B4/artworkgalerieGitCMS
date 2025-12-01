@@ -19,9 +19,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"; // Import Dialog components
 import { useToast } from "@/hooks/use-toast";
-import { db, storage } from "@/lib/firebase";
-import { doc, getDoc, deleteDoc } from "firebase/firestore";
-import { ref, deleteObject, listAll } from "firebase/storage";
+import { deleteFileFromGitHub, fetchFileFromGitHub, uploadFileToGitHub } from "@/lib/github";
 
 // Demo images
 import project1 from "@/assets/project-1.jpg";
@@ -32,6 +30,7 @@ import project5 from "@/assets/project-5.jpg";
 import project6 from "@/assets/project-6.jpg";
 import project7 from "@/assets/project-7.webp";
 import project8 from "@/assets/project-8.png";
+import projectsData from "@/data/projects.json";
 
 const demoProjectsData: { [key: string]: any } = {
   "demo-1": {
@@ -132,14 +131,38 @@ const ProjectDetail = () => {
 
     setIsDeleting(true);
     try {
-      // 1. Delete from Firestore
-      await deleteDoc(doc(db, "projects", id));
+      // 1. Fetch current projects.json
+      const projectsFile = await fetchFileFromGitHub('src/data/projects.json');
+      if (!projectsFile) throw new Error("Could not fetch projects data");
 
-      // 2. Delete media files from Storage
+      const projects = JSON.parse(projectsFile.content);
+      const updatedProjects = projects.filter((p: any) => p.id !== id);
+
+      // 2. Update projects.json
+      await uploadFileToGitHub(
+        'src/data/projects.json',
+        JSON.stringify(updatedProjects, null, 2),
+        `Delete project: ${project.title}`
+      );
+
+      // 3. Delete media files (optional, but good for cleanup)
       try {
-        const projectRef = ref(storage, `projects/${id}`);
-        const listResult = await listAll(projectRef);
-        await Promise.all(listResult.items.map((item) => deleteObject(item)));
+        // Delete cover image
+        if (project.cover_image_url && project.cover_image_url.includes('githubusercontent')) {
+          const coverPath = project.cover_image_url.split('/main/')[1];
+          if (coverPath) await deleteFileFromGitHub(coverPath, `Delete cover for ${project.title}`);
+        }
+
+        // Delete additional media
+        if (project.media && Array.isArray(project.media)) {
+          for (const media of project.media) {
+            const mediaUrl = media.url || media.media_url;
+            if (mediaUrl && mediaUrl.includes('githubusercontent')) {
+              const mediaPath = mediaUrl.split('/main/')[1];
+              if (mediaPath) await deleteFileFromGitHub(mediaPath, `Delete media for ${project.title}`);
+            }
+          }
+        }
       } catch (error) {
         console.warn("Error cleaning up media files:", error);
       }
@@ -166,20 +189,18 @@ const ProjectDetail = () => {
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => {
-      // Check demo projects first
+      // First check if it's a real project from projects.json
+      const realProject = projectsData.find((p) => p.id === id);
+      if (realProject) {
+        return realProject;
+      }
+
+      // Then check demo projects
       if (id?.startsWith("demo-")) {
         return demoProjectsData[id];
       }
 
-      // Fetch from Firestore
-      if (id) {
-        const docRef = doc(db, "projects", id);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          return { id: docSnap.id, ...docSnap.data() };
-        }
-      }
-
+      // Project not found
       return null;
     },
   });
@@ -207,7 +228,8 @@ const ProjectDetail = () => {
   const projectMedia = project?.media || [];
 
   const mediaType = project ? getMediaType(project.cover_image_url) : 'image';
-  const isOwner = session?.user?.uid === project?.user_id || session?.user?.uid === 'admin';
+  const isOwner = session?.user?.id === project?.user_id;
+
   const handleDownload = () => {
     if (project?.downloadable && project?.cover_image_url) {
       window.open(project.cover_image_url, "_blank");

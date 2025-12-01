@@ -1,12 +1,10 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ProjectCard } from "@/components/ProjectCard";
 import { CategoryFilter } from "@/components/CategoryFilter";
 import { HeroBackground } from "@/components/HeroBackground";
 import { useTypewriter } from "@/hooks/useTypewriter";
-import { db } from "@/lib/firebase";
-import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 
 // Demo images
 import project1 from "@/assets/project-1.jpg";
@@ -37,7 +35,7 @@ const demoProjects = [
   },
   {
     id: "demo-3",
-    title: "Surreale Kunst",
+    title: " Kunst",
     category: "illustration",
     cover_image_url: project3,
     likes: 432,
@@ -85,39 +83,25 @@ const demoProjects = [
   },
 ];
 
+import projectsData from "@/data/projects.json";
+
 const Index = () => {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const typewriterText = useTypewriter("Eine Plattform für Kreative, um ihre besten Arbeiten zu präsentieren", 50);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch projects from Firestore
-  useEffect(() => {
-    const q = query(collection(db, "projects"), orderBy("created_at", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const loadedProjects = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setProjects(loadedProjects);
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Error fetching projects:", error);
-      setIsLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
+  // Use local data instead of Supabase
+  const projects = projectsData;
+  const isLoading = false;
 
   // Use local data for hero projects
-  const allHeroProjects = projects;
+  const allHeroProjects = projectsData;
 
   // Use demo projects if no projects in database
   const displayProjects = projects.length > 0 ? projects : demoProjects;
   // Compose hero projects: use all projects (real + demo) for random selection in HeroBackground
   const allAvailableProjects = useMemo(() => {
     return allHeroProjects.length > 0 ? [...allHeroProjects, ...demoProjects] : demoProjects;
-  }, [allHeroProjects]);
+  }, [allHeroProjects, demoProjects]);
   const filteredProjects = selectedCategory === "all"
     ? displayProjects
     : displayProjects.filter((p) => p.category === selectedCategory);
