@@ -40,38 +40,54 @@ export const SecureVideo = ({ src, className, ...props }: SecureVideoProps) => {
 
                     // Check if the URL belongs to our repo
                     if (src.includes(`/${owner}/${repo}/`)) {
+                        console.log('[SecureVideo] Loading from private repo:', src);
                         // We need to fetch it via API to authenticate
                         // Convert raw URL to API path
                         // Remove prefix up to branch
                         const pathParts = src.split(`/${branch}/`);
                         if (pathParts.length > 1) {
                             const path = pathParts[1];
+                            console.log('[SecureVideo] Fetching path:', path);
                             const fileData = await fetchRawFileFromGitHub(path);
 
-                            if (fileData) {
+                            if (fileData && fileData.content) {
+                                console.log('[SecureVideo] File fetched, converting to blob. Content length:', fileData.content.length);
                                 // Convert base64 to blob
-                                const byteCharacters = atob(fileData.content);
-                                const byteNumbers = new Array(byteCharacters.length);
-                                for (let i = 0; i < byteCharacters.length; i++) {
-                                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                try {
+                                    const byteCharacters = atob(fileData.content);
+                                    const byteNumbers = new Array(byteCharacters.length);
+                                    for (let i = 0; i < byteCharacters.length; i++) {
+                                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                    }
+                                    const byteArray = new Uint8Array(byteNumbers);
+                                    const mimeType = getMimeType(path);
+                                    const blob = new Blob([byteArray], { type: mimeType });
+                                    const objectUrl = URL.createObjectURL(blob);
+                                    console.log('[SecureVideo] Blob created successfully:', objectUrl);
+                                    setVideoSrc(objectUrl);
+                                    setLoading(false);
+                                    return;
+                                } catch (decodeErr) {
+                                    console.error('[SecureVideo] Error decoding base64:', decodeErr);
+                                    setError(true);
+                                    setLoading(false);
+                                    return;
                                 }
-                                const byteArray = new Uint8Array(byteNumbers);
-                                const mimeType = getMimeType(path);
-                                const blob = new Blob([byteArray], { type: mimeType });
-                                const objectUrl = URL.createObjectURL(blob);
-                                setVideoSrc(objectUrl);
-                                setLoading(false);
-                                return;
+                            } else {
+                                console.warn('[SecureVideo] No file data returned');
                             }
                         }
                     }
                 } catch (err) {
-                    console.error("Error loading secure video:", err);
+                    console.error("[SecureVideo] Error loading secure video:", err);
                     setError(true);
+                    setLoading(false);
+                    return;
                 }
             }
 
             // Fallback for public URLs or if secure fetch failed
+            console.log('[SecureVideo] Using fallback src:', src);
             setVideoSrc(src);
             setLoading(false);
         };

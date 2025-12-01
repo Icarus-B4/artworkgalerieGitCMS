@@ -30,37 +30,62 @@ export const SecureImage = ({ src, alt, className, ...props }: SecureImageProps)
 
                     // Check if the URL belongs to our repo
                     if (src.includes(`/${owner}/${repo}/`)) {
+                        console.log('[SecureImage] Loading from private repo:', src);
                         // We need to fetch it via API to authenticate
                         // Convert raw URL to API path
                         // Remove prefix up to branch
                         const pathParts = src.split(`/${branch}/`);
                         if (pathParts.length > 1) {
                             const path = pathParts[1];
+                            console.log('[SecureImage] Fetching path:', path);
                             const fileData = await fetchRawFileFromGitHub(path);
 
-                            if (fileData) {
+                            if (fileData && fileData.content) {
+                                console.log('[SecureImage] File fetched, converting to blob. Content length:', fileData.content.length);
                                 // Convert base64 to blob
-                                const byteCharacters = atob(fileData.content);
-                                const byteNumbers = new Array(byteCharacters.length);
-                                for (let i = 0; i < byteCharacters.length; i++) {
-                                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                try {
+                                    const byteCharacters = atob(fileData.content);
+                                    const byteNumbers = new Array(byteCharacters.length);
+                                    for (let i = 0; i < byteCharacters.length; i++) {
+                                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                    }
+                                    const byteArray = new Uint8Array(byteNumbers);
+
+                                    // Detect MIME type from file extension
+                                    const ext = path.split('.').pop()?.toLowerCase();
+                                    let mimeType = 'image/png';
+                                    if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
+                                    else if (ext === 'gif') mimeType = 'image/gif';
+                                    else if (ext === 'webp') mimeType = 'image/webp';
+                                    else if (ext === 'svg') mimeType = 'image/svg+xml';
+
+                                    const blob = new Blob([byteArray], { type: mimeType });
+                                    const objectUrl = URL.createObjectURL(blob);
+                                    console.log('[SecureImage] Blob created successfully:', objectUrl);
+                                    setImageSrc(objectUrl);
+                                    setLoading(false);
+                                    return;
+                                } catch (decodeErr) {
+                                    console.error('[SecureImage] Error decoding base64:', decodeErr);
+                                    setError(true);
+                                    setLoading(false);
+                                    return;
                                 }
-                                const byteArray = new Uint8Array(byteNumbers);
-                                const blob = new Blob([byteArray], { type: 'image/png' }); // Type detection could be better
-                                const objectUrl = URL.createObjectURL(blob);
-                                setImageSrc(objectUrl);
-                                setLoading(false);
-                                return;
+                            } else {
+                                console.warn('[SecureImage] No file data returned');
                             }
                         }
                     }
                 } catch (err) {
-                    console.error("Error loading secure image:", err);
+                    console.error("[SecureImage] Error loading secure image:", err);
                     setError(true);
+                    setLoading(false);
+                    return;
                 }
             }
 
             // Fallback for public URLs or if secure fetch failed
+            console.log('[SecureImage] Using fallback src:', src);
             setImageSrc(src);
             setLoading(false);
         };

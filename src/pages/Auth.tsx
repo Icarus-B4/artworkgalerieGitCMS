@@ -17,12 +17,13 @@ const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const { session: firebaseSession, loading: firebaseLoading } = useSession();
 
   useEffect(() => {
-    if (session) {
+    if (!firebaseLoading && firebaseSession) {
       navigate("/admin/dashboard");
     }
-  }, [session, navigate]);
+  }, [firebaseSession, firebaseLoading, navigate]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,6 +62,15 @@ const Auth = () => {
       setLoading(false);
     }
   };
+
+  // Show loading spinner while checking auth state
+  if (firebaseLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-secondary/20">
+        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-secondary/20 px-4">
