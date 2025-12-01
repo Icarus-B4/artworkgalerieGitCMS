@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/dialog"; // Import Dialog components
 import { useToast } from "@/hooks/use-toast";
 import { deleteFileFromGitHub, fetchFileFromGitHub, uploadFileToGitHub } from "@/lib/github";
+import { SecureImage } from "@/components/SecureImage";
+import { SecureVideo } from "@/components/SecureVideo";
 
 // Demo images
 import project1 from "@/assets/project-1.jpg";
@@ -228,7 +230,7 @@ const ProjectDetail = () => {
   const projectMedia = project?.media || [];
 
   const mediaType = project ? getMediaType(project.cover_image_url) : 'image';
-  const isOwner = session?.user?.id === project?.user_id;
+  const isOwner = session?.user?.uid === project?.user_id;
 
   const handleDownload = () => {
     if (project?.downloadable && project?.cover_image_url) {
@@ -355,14 +357,12 @@ const ProjectDetail = () => {
         {/* Main Media */}
         <div className="mb-8 animate-scale-in">
           {mediaType === 'video' ? (
-            <video
+            <SecureVideo
               src={project.cover_image_url}
               className="w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
-              controls
-              playsInline
             />
           ) : (
-            <img
+            <SecureImage
               src={project.cover_image_url}
               alt={project.title}
               className="w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
@@ -387,11 +387,9 @@ const ProjectDetail = () => {
                     style={{ animationDelay: `${index * 0.1}s` }}
                   >
                     {mediaType === "video" ? (
-                      <video
+                      <SecureVideo
                         src={mediaUrl}
                         className="w-full h-48 object-cover rounded-lg shadow-lg"
-                        controls
-                        playsInline
                       />
                     ) : (
                       <div
@@ -403,7 +401,7 @@ const ProjectDetail = () => {
                           })
                         }
                       >
-                        <img
+                        <SecureImage
                           src={mediaUrl}
                           alt={`${project.title} - Medien ${index + 1}`}
                           className="w-full h-48 object-cover rounded-lg shadow-lg"
@@ -422,16 +420,14 @@ const ProjectDetail = () => {
           <DialogContent className="max-w-7xl p-0"> {/* Reverted hideCloseButton as it caused an error */}
             {openMedia?.type === "video" ? (
               // This case should ideally not be reached if onClick is only on images
-              <video
+              <SecureVideo
                 src={openMedia.url}
                 className="w-full h-auto max-h-[90vh] object-contain rounded-lg"
-                controls
-                playsInline
                 autoPlay
               />
             ) : (
-              <img
-                src={openMedia?.url}
+              <SecureImage
+                src={openMedia?.url || ""}
                 alt="Vergrößertes Medium"
                 className="w-full h-auto max-h-[90vh] object-contain rounded-lg"
               />

@@ -73,9 +73,9 @@ export const CommentsSection = ({ projectId }: CommentsSectionProps) => {
 
       const commentsRef = collection(db, "projects", projectId, "comments");
       await addDoc(commentsRef, {
-        user_id: user.id,
-        user_name: user.user_metadata?.full_name || user.email?.split('@')[0] || "Admin",
-        user_avatar: user.user_metadata?.avatar_url || null,
+        user_id: user.uid,
+        user_name: user.displayName || user.email?.split('@')[0] || "Admin",
+        user_avatar: user.photoURL || null,
         content: newComment,
         created_at: serverTimestamp(),
       });

@@ -52,6 +52,29 @@ export const fetchFileFromGitHub = async (path: string) => {
   };
 };
 
+export const fetchRawFileFromGitHub = async (path: string) => {
+  const { owner, repo, token, branch } = getGitHubConfig();
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github.v3+json',
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) return null;
+    throw new Error(`GitHub API Error: ${response.statusText}`);
+  }
+
+  const data: GitHubFileResponse = await response.json();
+  return {
+    content: data.content, // Return raw base64
+    sha: data.sha,
+  };
+};
+
 export const uploadFileToGitHub = async (
   path: string,
   content: string | ArrayBuffer,
