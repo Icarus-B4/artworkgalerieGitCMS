@@ -39,7 +39,7 @@ const Auth = () => {
           title: "Erfolgreich angemeldet",
           description: "Willkommen im Admin-Bereich!",
         });
-        navigate("/admin/dashboard");
+        // Navigation will be handled by useEffect
       } else {
         toast({
           title: "Fehler",
@@ -70,7 +70,7 @@ const Auth = () => {
           description: "Willkommen zurück!",
         });
       }
-      navigate("/admin/dashboard");
+      // Navigation will be handled by useEffect
     } catch (error: any) {
       let errorMessage = "Ein Fehler ist aufgetreten.";
       if (error.code === "auth/invalid-email") errorMessage = "Ungültige E-Mail-Adresse.";

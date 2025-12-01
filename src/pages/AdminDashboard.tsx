@@ -8,19 +8,28 @@ import { useQuery } from "@tanstack/react-query";
 import { ProjectUploadDialog } from "@/components/admin/ProjectUploadDialog";
 import { ProjectListItem } from "@/components/admin/ProjectListItem";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSession } from "@/hooks/use-session";
 import { fetchFileFromGitHub } from "@/lib/github";
 import projectsData from "@/data/projects.json";
+import { auth } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isAuthenticated, logout, loading: authLoading } = useAuth();
+  const { isAuthenticated: localAuth, logout: localLogout, loading: localLoading } = useAuth();
+  const { session: firebaseSession, loading: firebaseLoading } = useSession();
+
+  // Wait for both auth systems to load
+  const isLoading = localLoading || firebaseLoading;
+  const isAuthenticated = localAuth || !!firebaseSession;
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    // Only redirect when loading is complete and user is not authenticated
+    if (!isLoading && !isAuthenticated) {
       navigate("/admin");
     }
-  }, [isAuthenticated, authLoading, navigate]);
+  }, [isAuthenticated, isLoading, navigate]);
 
   const { data: projects = [], refetch } = useQuery({
     queryKey: ["admin-projects"],
@@ -45,16 +54,30 @@ const AdminDashboard = () => {
     totalViews: projects.reduce((sum: number, p: any) => sum + (p.views || 0), 0),
   };
 
-  const handleSignOut = () => {
-    logout();
-    toast({
-      title: "Abgemeldet",
-      description: "Sie wurden erfolgreich abgemeldet",
-    });
-    navigate("/admin");
+  const handleSignOut = async () => {
+    // Logout from both systems
+    try {
+      if (firebaseSession) {
+        await signOut(auth);
+      }
+      localLogout();
+
+      toast({
+        title: "Abgemeldet",
+        description: "Sie wurden erfolgreich abgemeldet",
+      });
+      navigate("/admin");
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast({
+        title: "Fehler",
+        description: "Abmeldung fehlgeschlagen",
+        variant: "destructive",
+      });
+    }
   };
 
-  if (authLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
