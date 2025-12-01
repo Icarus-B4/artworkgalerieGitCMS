@@ -46,8 +46,29 @@ export const fetchFileFromGitHub = async (path: string) => {
   }
 
   const data: GitHubFileResponse = await response.json();
+
+  let contentBase64 = data.content;
+
+  // If content is missing (file > 1MB), fetch via Blob API
+  if (!contentBase64 && data.sha) {
+    const blobUrl = `https://api.github.com/repos/${owner}/${repo}/git/blobs/${data.sha}`;
+    const blobResponse = await fetch(blobUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (!blobResponse.ok) {
+      throw new Error(`GitHub Blob API Error: ${blobResponse.statusText}`);
+    }
+
+    const blobData = await blobResponse.json();
+    contentBase64 = blobData.content;
+  }
+
   return {
-    content: decodeURIComponent(escape(atob(data.content))), // Handle UTF-8 decoding
+    content: decodeURIComponent(escape(atob(contentBase64?.replace(/\n/g, '') || ''))), // Handle UTF-8 decoding
     sha: data.sha,
   };
 };
@@ -69,8 +90,30 @@ export const fetchRawFileFromGitHub = async (path: string) => {
   }
 
   const data: GitHubFileResponse = await response.json();
+
+  // If content is missing (file > 1MB), fetch via Blob API
+  if (!data.content && data.sha) {
+    const blobUrl = `https://api.github.com/repos/${owner}/${repo}/git/blobs/${data.sha}`;
+    const blobResponse = await fetch(blobUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (!blobResponse.ok) {
+      throw new Error(`GitHub Blob API Error: ${blobResponse.statusText}`);
+    }
+
+    const blobData = await blobResponse.json();
+    return {
+      content: blobData.content.replace(/\n/g, ''), // Strip newlines
+      sha: data.sha,
+    };
+  }
+
   return {
-    content: data.content, // Return raw base64
+    content: data.content ? data.content.replace(/\n/g, '') : '', // Strip newlines
     sha: data.sha,
   };
 };
