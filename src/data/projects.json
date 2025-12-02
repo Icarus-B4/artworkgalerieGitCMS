@@ -1,5 +1,21 @@
 [
   {
+    "id": "project-1764665769051",
+    "title": "End of Times",
+    "description": "MOONFALL BIEL/Bienne Kongressplatz",
+    "category": "illustration",
+    "cover_image_url": "https://raw.githubusercontent.com/Icarus-B4/artworkgalerieGitCMS/main/public/uploads/project-1764665769051-cover.png",
+    "created_at": "2025-12-02T08:56:15.826Z",
+    "likes": 0,
+    "views": 0,
+    "media": [
+      {
+        "url": "https://raw.githubusercontent.com/Icarus-B4/artworkgalerieGitCMS/main/public/uploads/project-1764665769051-media-0.jpg",
+        "type": "image"
+      }
+    ]
+  },
+  {
     "id": "project-1764524858506",
     "title": "test",
     "description": "adsadsadsada",
